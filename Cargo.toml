@@ -1,0 +1,19 @@
+[package]
+name = "solana-client-wasip2"
+description = "A Solana RPC client for wasm32-wasip2 components: JSON-RPC over wasi:http (waki), reusing the official Anza primitive crates."
+version = "0.0.0"
+edition = "2021"
+authors = ["Ayush Agrawal <ayushagl06@gmail.com>"]
+license = "MIT OR Apache-2.0"
+documentation = "https://docs.rs/solana-client-wasip2"
+repository = "https://github.com/AyushAgrawal-A2/solana-client-wasip2"
+homepage = "https://github.com/AyushAgrawal-A2/solana-client-wasip2"
+readme = "README.md"
+keywords = ["solana", "wasm", "wasi", "wasip2", "rpc"]
+categories = ["wasm", "api-bindings"]
+rust-version = "1.89.0"
+
+[lib]
+crate-type = ["rlib"]
+
+[dependencies]
