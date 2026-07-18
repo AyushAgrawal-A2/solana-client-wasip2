@@ -14,7 +14,7 @@
 
 use core::time::Duration;
 
-use crate::{Error, Result};
+use crate::Result;
 
 /// Sends a JSON-RPC request body to `url` and returns the response body.
 ///
@@ -61,6 +61,8 @@ impl WakiTransport {
 #[cfg(target_family = "wasm")]
 impl RpcTransport for WakiTransport {
     fn post(&self, url: &str, body: &str) -> Result<String> {
+        use crate::Error;
+
         let mut req = waki::Client::new()
             .post(url)
             .header("content-type", "application/json")
@@ -90,7 +92,7 @@ impl RpcTransport for WakiTransport {
 /// state (via `Rc`), so clone one before moving it into an `RpcClient` to
 /// inspect requests afterwards. Its [`sleep`](RpcTransport::sleep) is a no-op,
 /// so retry tests run instantly.
-#[cfg(feature = "test")]
+#[cfg(any(test, feature = "test"))]
 #[derive(Debug, Clone, Default)]
 pub struct MockTransport {
     success: bool,
@@ -98,7 +100,7 @@ pub struct MockTransport {
     remaining_failures: std::rc::Rc<std::cell::RefCell<u32>>,
     requests: std::rc::Rc<std::cell::RefCell<Vec<String>>>,
 }
-#[cfg(feature = "test")]
+#[cfg(any(test, feature = "test"))]
 impl MockTransport {
     /// Always return `response` as a successful body.
     pub fn success(response: impl Into<String>) -> Self {
@@ -135,9 +137,11 @@ impl MockTransport {
         self.requests.borrow().len()
     }
 }
-#[cfg(feature = "test")]
+#[cfg(any(test, feature = "test"))]
 impl RpcTransport for MockTransport {
     fn post(&self, _url: &str, body: &str) -> Result<String> {
+        use crate::Error;
+
         self.requests.borrow_mut().push(body.to_string());
         {
             let mut remaining = self.remaining_failures.borrow_mut();

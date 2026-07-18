@@ -51,6 +51,10 @@ waki = { version = "0.5.1", features = ["json"] }
 # never builds test targets) does not pull the native client — only `cargo test`
 # does. A caller who builds transactions adds the SDK crates they need directly.
 [dev-dependencies]
+# Self dev-dependency: enables the `test` feature (MockTransport) for this
+# crate's own integration tests in tests/, without putting it in the default
+# feature set. The crate's unit tests reach MockTransport via `cfg(test)`.
+solana-client-wasip2 = { path = ".", features = ["test"] }
 solana-compute-budget-interface = "3.0.0"
 solana-instruction = "3.4.0"
 solana-keypair = "3.1.2"
@@ -62,10 +66,13 @@ solana-transaction = { version = "4.1.5", features = ["wincode"] }
 spl-associated-token-account-interface = "2.0.0"
 spl-memo-interface = "2.1.0"
 spl-token-interface = "3.0.0"
-tempfile = "3"
-ureq = "2.10"
+tempfile = "3.27.0"
+ureq = "2.12.1"
 
 [features]
-default = ["curve", "test"]
+default = ["curve"]
 curve = ["solana-pubkey/curve25519", "solana-pubkey/sha2"]
+# Exposes `MockTransport` for host testing. Off by default — a plain build never
+# ships it; enable it to test code that drives this client. (This crate's own
+# tests turn it on via the self dev-dependency above.)
 test = []

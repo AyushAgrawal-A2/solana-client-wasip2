@@ -2165,6 +2165,7 @@ dependencies = [
  "serde_json",
  "solana-account 4.3.1",
  "solana-account-decoder-client-types",
+ "solana-client-wasip2",
  "solana-commitment-config",
  "solana-compute-budget-interface",
  "solana-epoch-info",

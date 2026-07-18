@@ -74,7 +74,9 @@ let pubkey = Pubkey::from_str("9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM")?;
 let lamports = client.get_balance(&pubkey)?;
 ```
 
-On the host (tests, tooling), swap in `MockTransport` — same client, no network:
+On the host (tests, tooling), swap in `MockTransport` — same client, no network.
+It lives behind the `test` feature (`solana-client-wasip2 = { version = "…",
+features = ["test"] }`, typically a dev-dependency):
 
 ```rust
 use solana_client_wasip2::{RpcClient, MockTransport};
@@ -162,7 +164,7 @@ pin, rebuild, and fix whatever the compiler and tests flag.
 | Feature | Default | Effect |
 |---------|:-------:|--------|
 | `curve` | ✅ | Enables `solana-pubkey` ed25519 support (on-curve checks / PDA derivation). |
-| `test`  | ✅ | Provides `MockTransport` for host testing. |
+| `test`  |    | Exposes `MockTransport` for host testing. Off by default so a normal build never ships it; enable it to test code that drives this client. |
 
 A component that wants the smallest possible artifact can opt out:
 
