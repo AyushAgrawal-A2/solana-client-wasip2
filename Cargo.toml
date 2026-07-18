@@ -3,7 +3,6 @@ name = "solana-client-wasip2"
 description = "A Solana RPC client for wasm32-wasip2 components: JSON-RPC over wasi:http (waki), reusing the official Anza primitive crates."
 version = "0.0.0"
 edition = "2021"
-authors = ["Ayush Agrawal <ayushagl06@gmail.com>"]
 license = "MIT OR Apache-2.0"
 documentation = "https://docs.rs/solana-client-wasip2"
 repository = "https://github.com/AyushAgrawal-A2/solana-client-wasip2"
@@ -17,3 +16,19 @@ rust-version = "1.89.0"
 crate-type = ["rlib"]
 
 [dependencies]
+bs58 = "0.5.1"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.150"
+solana-hash = "4.5.0"
+solana-instruction = "3.4.0"
+solana-message = "4.3.0"
+solana-pubkey = "4.2.0"
+solana-transaction = "4.1.5"
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+waki = { version = "0.5.1", features = ["json"] }
+
+[features]
+default = ["curve", "test"]
+curve = ["solana-pubkey/curve25519", "solana-pubkey/sha2"]
+test = []
