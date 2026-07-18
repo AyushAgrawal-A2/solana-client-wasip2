@@ -6,10 +6,13 @@
 //!
 //! - `WakiTransport` — the real transport, compiled only for wasm targets. It
 //!   speaks HTTP through the host's `wasi:http` (via the `waki` crate), so TLS
-//!   happens host-side and no sockets are linked into the guest.
-//! - [`MockTransport`] — a host-only fake that returns a canned reply and
-//!   records outgoing requests, so the entire client can be tested with
-//!   `cargo test` — no network, no wasm toolchain.
+//!   happens host-side and no sockets are linked into the guest. It maps HTTP
+//!   429/5xx to a retryable [`Error::Transport`] and supports a connect timeout.
+//! - [`MockTransport`] — a host-only fake that returns canned replies (including
+//!   a "flaky" mode for exercising retries) and records outgoing requests, so
+//!   the entire client can be tested with `cargo test` — no network, no wasm.
+
+use core::time::Duration;
 
 use crate::{Error, Result};
 
@@ -19,6 +22,13 @@ use crate::{Error, Result};
 /// pure. Any I/O failure should be reported as [`Error::Transport`].
 pub trait RpcTransport {
     fn post(&self, url: &str, body: &str) -> Result<String>;
+
+    /// Pause between retry attempts. The default sleeps the current thread
+    /// (which works on `wasm32-wasip2` via the WASI clock); test transports
+    /// override it to a no-op so the suite never actually waits.
+    fn sleep(&self, duration: Duration) {
+        std::thread::sleep(duration);
+    }
 }
 
 /// The production transport: blocking HTTP over the host's `wasi:http`.
@@ -26,35 +36,66 @@ pub trait RpcTransport {
 /// Only exists on wasm targets — on the host there is no `wasi:http` to call,
 /// and tests use [`MockTransport`] instead.
 #[cfg(target_family = "wasm")]
-pub struct WakiTransport;
+#[derive(Debug, Clone, Default)]
+pub struct WakiTransport {
+    /// Timeout for establishing the connection. `None` uses the host default.
+    pub connect_timeout: Option<Duration>,
+}
+
+#[cfg(target_family = "wasm")]
+impl WakiTransport {
+    /// A transport with the host's default connection behaviour.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// A transport that gives up if the connection is not established within
+    /// `timeout`.
+    pub fn with_connect_timeout(timeout: Duration) -> Self {
+        Self {
+            connect_timeout: Some(timeout),
+        }
+    }
+}
 
 #[cfg(target_family = "wasm")]
 impl RpcTransport for WakiTransport {
     fn post(&self, url: &str, body: &str) -> Result<String> {
-        let response = waki::Client::new()
+        let mut req = waki::Client::new()
             .post(url)
             .header("content-type", "application/json")
-            .body(body.as_bytes().to_vec())
-            .send()
-            .map_err(|e| Error::Transport(e.to_string()))?;
+            .body(body.as_bytes().to_vec());
+        if let Some(timeout) = self.connect_timeout {
+            req = req.connect_timeout(timeout);
+        }
 
+        let response = req.send().map_err(|e| Error::Transport(e.to_string()))?;
+        let status = response.status_code();
         let bytes = response
             .body()
             .map_err(|e| Error::Transport(e.to_string()))?;
+
+        // 429 (rate limited) and 5xx (server-side) are transient — surface them
+        // as transport errors so the engine retries.
+        if status == 429 || status >= 500 {
+            return Err(Error::Transport(format!("http status {status}")));
+        }
 
         String::from_utf8(bytes).map_err(|e| Error::Decode(e.to_string()))
     }
 }
 
-/// A transport for host tests: returns a canned body and records every request
+/// A transport for host tests: returns canned replies and records every request
 /// so tests can assert what the client actually sent. Cloning shares the same
-/// request log (via `Rc`), so clone one before moving it into an `RpcClient`
-/// to inspect requests afterwards.
+/// state (via `Rc`), so clone one before moving it into an `RpcClient` to
+/// inspect requests afterwards. Its [`sleep`](RpcTransport::sleep) is a no-op,
+/// so retry tests run instantly.
 #[cfg(feature = "test")]
 #[derive(Debug, Clone, Default)]
 pub struct MockTransport {
     success: bool,
     message: String,
+    remaining_failures: std::rc::Rc<std::cell::RefCell<u32>>,
     requests: std::rc::Rc<std::cell::RefCell<Vec<String>>>,
 }
 #[cfg(feature = "test")]
@@ -64,15 +105,25 @@ impl MockTransport {
         Self {
             success: true,
             message: response.into(),
-            requests: Default::default(),
+            ..Default::default()
         }
     }
-    /// Always fail with a transport error carrying `error`.
+    /// Always fail with a (retryable) transport error carrying `error`.
     pub fn failure(error: impl Into<String>) -> Self {
         Self {
             success: false,
             message: error.into(),
-            requests: Default::default(),
+            ..Default::default()
+        }
+    }
+    /// Fail with a retryable transport error `fail_times` times, then return
+    /// `response`. For exercising the retry loop.
+    pub fn flaky(fail_times: u32, response: impl Into<String>) -> Self {
+        Self {
+            success: true,
+            message: response.into(),
+            remaining_failures: std::rc::Rc::new(std::cell::RefCell::new(fail_times)),
+            ..Default::default()
         }
     }
     /// The `n`-th captured request body, parsed as JSON. Panics if absent.
@@ -88,10 +139,19 @@ impl MockTransport {
 impl RpcTransport for MockTransport {
     fn post(&self, _url: &str, body: &str) -> Result<String> {
         self.requests.borrow_mut().push(body.to_string());
+        {
+            let mut remaining = self.remaining_failures.borrow_mut();
+            if *remaining > 0 {
+                *remaining -= 1;
+                return Err(Error::Transport("flaky".into()));
+            }
+        }
         if self.success {
             Ok(self.message.clone())
         } else {
             Err(Error::Transport(self.message.clone()))
         }
     }
+
+    fn sleep(&self, _duration: Duration) {}
 }

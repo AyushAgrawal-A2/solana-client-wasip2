@@ -73,7 +73,7 @@ fn classify(r: &RpcRequest) -> Coverage {
         RpcRequest::GetSignatureStatuses => Impl("getSignatureStatuses"),
         RpcRequest::GetSignaturesForAddress => Impl("getSignaturesForAddress"),
         RpcRequest::GetSlot => Impl("getSlot"),
-        RpcRequest::GetSlotLeader => Impl("getSlotLeader"),
+        RpcRequest::GetSlotLeader => Skipped("official RpcClient exposes only getSlotLeaders"),
         RpcRequest::GetSlotLeaders => Impl("getSlotLeaders"),
         RpcRequest::GetStakeMinimumDelegation => Impl("getStakeMinimumDelegation"),
         RpcRequest::GetSupply => Impl("getSupply"),
@@ -177,7 +177,7 @@ fn all_variants() -> Vec<RpcRequest> {
 /// Public HTTP methods that exist on real RPC nodes but are **absent from the
 /// `RpcRequest` enum**. The enum is not a perfect mirror of the HTTP surface, so
 /// these are tracked separately. Verified against `methods.rs`.
-const EXTRA_HTTP_NOT_IN_ENUM: &[&str] = &["getBlockCommitment"];
+const EXTRA_HTTP_NOT_IN_ENUM: &[&str] = &[];
 
 /// Detect (2): our hard-coded wire name must equal upstream's `as_str()`.
 #[test]
@@ -234,7 +234,7 @@ fn coverage_matches_upstream() {
 /// handles, so `all_variants()` cannot silently fall behind the enum.
 #[test]
 fn census_covers_every_variant() {
-    // 51 implemented-in-enum + 8 skipped = 59 variants in RpcRequest 4.1.x.
+    // 50 implemented-in-enum + 9 skipped = 59 variants in RpcRequest 4.1.x.
     assert_eq!(
         all_variants().len(),
         59,

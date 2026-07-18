@@ -1,0 +1,19 @@
+# A minimal wasm32-wasip2 command component that drives the real client
+# (WakiTransport over wasi:http) against a validator. A standalone crate (its own
+# `[workspace]` below) that only builds for wasm; the `wasm_smoke` test in the
+# parent crate compiles it on demand with an explicit `--target`.
+[package]
+name = "wasm-smoke"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+solana-client-wasip2 = { path = ".." }
+
+[[bin]]
+name = "wasm-smoke"
+path = "src/main.rs"
+
+# Stand alone: not part of the parent workspace (it only builds for wasm).
+[workspace]

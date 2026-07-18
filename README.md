@@ -16,20 +16,32 @@ it.
 
 ## At a glance
 
-- **Full HTTP method surface** — all 52 public JSON-RPC methods, as 66 typed
-  functions (each with `_with_config` / `_with_commitment` variants where the
-  node accepts one).
+- **Full HTTP method surface** — the 50 HTTP JSON-RPC methods in Anza's
+  `RpcRequest` enum are all implemented (the remaining variants — internal
+  validator RPCs like `registerNode`/`signVote`, long-removed archiver/storage
+  RPCs, and the non-endpoint `Custom` escape hatch — are explicitly skipped; see
+  `tests/rpc_coverage.rs`), each with `_with_config` / `_with_commitment`
+  variants where the node accepts one.
 - **Official types, not hand-rolled** — request/response shapes are re-exported
   from Anza's pinned crates, so they can't silently drift from the real API.
 - **Pluggable transport** — a small `RpcTransport` trait separates the JSON-RPC
-  engine from HTTP, so the whole client runs on the host under `cargo test` with
-  **no network and no wasm toolchain**.
+  engine from HTTP, so the whole client runs on the host: `MockTransport` for
+  hermetic unit tests (no network, no wasm toolchain), or a real HTTP shim
+  against a live validator in the integration tests.
 - **Upstream-change guard** — a test diffs the implemented methods against
   Anza's canonical `RpcRequest` enum; a new or renamed upstream method fails the
   build until it's handled.
-- **Read-only, no async runtime** — the client is a query surface and never
-  signs, so there is no keypair or hot-wallet risk in the plugin, and no `tokio`
-  is linked into the guest.
+- **Lean, RPC-only surface** — transaction *building* is out of scope; add the
+  upstream SDK crates you need directly (they compile for wasip2). The types the
+  RPC methods speak (`Pubkey`, `Hash`, `Signature`, `VersionedTransaction`,
+  `VersionedMessage`, `CommitmentConfig`) are re-exported so you can name them
+  without version-matching.
+- **No async runtime** — no `tokio` in the guest. The RPC client never signs;
+  signing is opt-in, with keys supplied and guarded by the caller.
+- **Production-grade** — automatic retry with exponential backoff on rate-limits
+  (429) and 5xx, a configurable connect timeout, a client-level default
+  commitment, `send_and_confirm_transaction` + confirmation polling, and
+  structured RPC errors that surface preflight logs.
 
 ## Install
 
@@ -49,13 +61,13 @@ rustup target add wasm32-wasip2
 Inside a `wasm32-wasip2` component, use the real transport:
 
 ```rust
-use solana_client_wasip2::{RpcClient, WakiTransport};
-use solana_pubkey::Pubkey;
+use solana_client_wasip2::{RpcClient, pubkey::Pubkey};
 use std::str::FromStr;
 
 // The RPC URL (and any API key) is the caller's — read it from plugin config,
-// never hard-code it.
-let client = RpcClient::new(rpc_url, WakiTransport);
+// never hard-code it. `new` supplies the wasi:http transport, matching the
+// official client's constructor.
+let client = RpcClient::new(rpc_url);
 
 let blockhash = client.get_latest_blockhash()?;
 let pubkey = Pubkey::from_str("9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM")?;
@@ -70,12 +82,52 @@ use solana_client_wasip2::{RpcClient, MockTransport};
 let mock = MockTransport::success(
     r#"{"jsonrpc":"2.0","id":1,"result":{"context":{"slot":1},"value":42}}"#,
 );
-let client = RpcClient::new("http://localhost:8899", mock);
+let client = RpcClient::new_with_transport("http://localhost:8899", mock);
 assert_eq!(client.get_balance(&pubkey)?, 42);
 ```
 
 Response types are Anza's own (`UiAccount`, `RpcBlockhash`, `UiTokenAmount`,
 `EncodedConfirmedTransactionWithStatusMeta`, …), re-exported at the crate root.
+
+### Building and submitting a transaction
+
+Building and signing transactions is **out of scope** — this is an RPC client. The
+upstream SDK crates do that and compile for `wasm32-wasip2`, so add the ones you
+need directly (they are ordinary dependencies you own and version):
+
+```toml
+solana-system-interface = { version = "3", features = ["bincode"] } # transfer, etc.
+solana-keypair = "3"                                                 # signing keys
+solana-signer = "3"
+# spl-token-interface, spl-associated-token-account-interface, … as needed
+```
+
+The `message` and `transaction` types the RPC methods speak are re-exported by
+this crate, so they match versions with no effort. `send_transaction` takes the
+typed transaction and serializes it internally — no `bincode` on your side.
+
+```rust
+use solana_client_wasip2::{
+    RpcClient,
+    message::{v0, VersionedMessage},
+    transaction::versioned::VersionedTransaction,
+};
+use solana_system_interface::instruction as system_instruction;
+use solana_signer::Signer;
+
+let client = RpcClient::new(rpc_url);
+let blockhash = client.get_latest_blockhash()?; // -> Hash, like the official client
+
+let ix = system_instruction::transfer(&payer.pubkey(), &recipient, 1_000_000);
+let msg = VersionedMessage::V0(
+    v0::Message::try_compile(&payer.pubkey(), &[ix], &[], blockhash)?,
+);
+
+// Sign with a caller-held key. `send_transaction` takes the typed transaction
+// (like the official client) and serializes it internally.
+let tx = VersionedTransaction::try_new(msg, &[&payer])?;
+let sig = client.send_transaction(&tx)?;
+```
 
 ## Architecture
 
@@ -83,7 +135,7 @@ Response types are Anza's own (`UiAccount`, `RpcBlockhash`, `UiTokenAmount`,
 caller ── RpcClient::get_balance(..)        rpc::methods   one fn per JSON-RPC method
            │
            ▼
-         RpcClient::call_typed(..)          rpc::client    the JSON-RPC engine
+         RpcClient dispatch + retry           rpc::client    the JSON-RPC engine
            │                                               (framing, ids, result/error, decode)
            ▼
          RpcTransport::post(url, body)      transport      the swappable seam
@@ -127,7 +179,7 @@ cargo build
 # WebAssembly component (release)
 cargo build --target wasm32-wasip2 --release
 
-# Tests — run entirely on the host, no network (mocked RPC)
+# Tests — the full suite, including the live-validator integration tests
 cargo test
 
 # Lints
@@ -137,14 +189,39 @@ cargo clippy --all-targets
 cargo doc --no-deps --open
 ```
 
-The test suite (36 tests) is layered:
+`cargo test` runs **everything** in one command. Most of it is hermetic (host
+only, no network, mocked RPC); the two live-validator tests below additionally
+require **`solana-test-validator` on `PATH`** (and the wasm smoke test needs
+**`wasmtime`**, else it skips). The layers:
 
-- `src/rpc/client.rs` — engine internals (`result` / `error` / malformed body).
+- `src/rpc/client.rs` — engine internals: `result` / `error` split, retry/backoff,
+  structured error data.
 - `tests/methods.rs` — response parsing + `Option`/parse paths; doubles as an
   upstream-shape drift guard.
 - `tests/requests.rs` — request construction (method names, default encodings,
   optional config, id sequencing).
+- `tests/lifecycle.rs` — confirmation polling, typed submit, default commitment.
+- `tests/tx.rs` — transaction construction with the upstream SDK crates (dev-only),
+  proving they interoperate with the re-exported `message`/`transaction` types.
 - `tests/rpc_coverage.rs` — method-coverage guard vs Anza's `RpcRequest`.
+- `tests/integration_methods.rs` — **live**: spawns a throwaway
+  `solana-test-validator`, runs every method through a host HTTP transport shim,
+  and compares results to `solana-rpc-client` (the official native client, a
+  dev-dependency). Stable methods are diffed for exact structural equality;
+  volatile ones for a shared invariant. Real state is set up on-chain (airdrop, a
+  transfer, an SPL mint + ATA + minted supply) so account/token/transaction
+  methods return live data. Both clients parse into the *same* upstream types, so
+  the diff is exact — this is what caught the token-account default-encoding bug.
+- `tests/wasm_smoke.rs` — **live**: compiles the client to a `wasm32-wasip2`
+  component (the `wasm-smoke/` crate) and runs it under
+  `wasmtime run -S http -S inherit-network`, so the **real `WakiTransport`** makes
+  actual `wasi:http` calls to the validator — the one path the host shim cannot
+  cover.
+
+The native client, `ureq`, and the validator harness are **dev-dependencies**,
+so they are compiled only by `cargo test` — `cargo build --target wasm32-wasip2`
+never pulls them (the native client does not build for wasip2, which is the whole
+reason this crate exists).
 
 ## Contributing
 

@@ -15,6 +15,7 @@ pub use solana_rpc_client_types::config::{
     RpcSimulateTransactionConfig, RpcSupplyConfig, RpcTokenAccountsFilter, RpcTransactionConfig,
 };
 pub use solana_rpc_client_types::filter::{Memcmp, MemcmpEncodedBytes, RpcFilterType};
+pub use solana_rpc_client_types::request::{RpcRequest, TokenAccountsFilter};
 
 pub use solana_account_decoder_client_types::{UiAccountEncoding, UiDataSliceConfig};
 pub use solana_transaction_status_client_types::{TransactionDetails, UiTransactionEncoding};

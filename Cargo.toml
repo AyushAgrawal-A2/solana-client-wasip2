@@ -17,20 +17,53 @@ crate-type = ["rlib"]
 
 [dependencies]
 base64 = "0.22.1"
+# bincode 1.x only: Solana's wire format is bincode-1 (fixint, little-endian);
+# bincode 2/3 changed the default encoding and would produce wrong bytes.
+bincode = "1.3.3"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.150"
+solana-account = "4.3.1"
 solana-account-decoder-client-types = { version = "=4.1.2", features = ["agave-unstable-api"] }
 solana-commitment-config = { version = "3.1.1", features = ["serde"] }
 solana-epoch-info = { version = "3.1.0", features = ["serde"] }
 solana-epoch-schedule = { version = "3.2.0", features = ["serde"] }
 solana-hash = "4.5.0"
+solana-message = { version = "4.3.0", features = ["serde"] }
 solana-pubkey = "4.2.0"
 solana-rpc-client-types = { version = "=4.1.2", features = ["agave-unstable-api"] }
 solana-signature = "3.4.1"
+# `serde` enables bincode wire serialization of a transaction for submission.
+solana-transaction = { version = "4.1.5", features = ["serde"] }
+solana-transaction-error = "3.3.1"
 solana-transaction-status-client-types = { version = "=4.1.2", features = ["agave-unstable-api"] }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 waki = { version = "0.5.1", features = ["json"] }
+
+# Test-only dependencies. None are needed by the library itself — they are for:
+#  - transaction-building tests (the SDK/SPL crates below; `wincode` on
+#    solana-transaction enables VersionedTransaction::try_new / signing), and
+#  - the live-validator integration tests (`tests/integration_methods.rs`,
+#    `tests/wasm_smoke.rs`): the official native `solana-rpc-client` used as the
+#    reference to diff against, a blocking HTTP transport (`ureq`) to drive our
+#    client on the host, and a temp ledger dir (`tempfile`).
+# Because these are dev-dependencies, `cargo build --target wasm32-wasip2` (which
+# never builds test targets) does not pull the native client — only `cargo test`
+# does. A caller who builds transactions adds the SDK crates they need directly.
+[dev-dependencies]
+solana-compute-budget-interface = "3.0.0"
+solana-instruction = "3.4.0"
+solana-keypair = "3.1.2"
+solana-rpc-client = "=4.1.2"
+solana-rpc-client-api = "=4.1.2"
+solana-signer = "3.0.1"
+solana-system-interface = { version = "3.2.0", features = ["bincode"] }
+solana-transaction = { version = "4.1.5", features = ["wincode"] }
+spl-associated-token-account-interface = "2.0.0"
+spl-memo-interface = "2.1.0"
+spl-token-interface = "3.0.0"
+tempfile = "3"
+ureq = "2.10"
 
 [features]
 default = ["curve", "test"]
