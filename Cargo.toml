@@ -1,6 +1,6 @@
 [package]
 name = "solana-client-wasip2"
-description = "A Solana RPC client for wasm32-wasip2 components: JSON-RPC over wasi:http (waki), reusing the official Anza primitive crates."
+description = "Unofficial Solana RPC client for wasm32-wasip2 components: JSON-RPC over wasi:http (waki), reusing the official Anza primitive crates."
 version = "0.0.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -16,14 +16,18 @@ rust-version = "1.89.0"
 crate-type = ["rlib"]
 
 [dependencies]
-bs58 = "0.5.1"
+base64 = "0.22.1"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.150"
+solana-account-decoder-client-types = { version = "=4.1.2", features = ["agave-unstable-api"] }
+solana-commitment-config = { version = "3.1.1", features = ["serde"] }
+solana-epoch-info = { version = "3.1.0", features = ["serde"] }
+solana-epoch-schedule = { version = "3.2.0", features = ["serde"] }
 solana-hash = "4.5.0"
-solana-instruction = "3.4.0"
-solana-message = "4.3.0"
 solana-pubkey = "4.2.0"
-solana-transaction = "4.1.5"
+solana-rpc-client-types = { version = "=4.1.2", features = ["agave-unstable-api"] }
+solana-signature = "3.4.1"
+solana-transaction-status-client-types = { version = "=4.1.2", features = ["agave-unstable-api"] }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 waki = { version = "0.5.1", features = ["json"] }
