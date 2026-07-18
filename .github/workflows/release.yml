@@ -1,27 +1,39 @@
 name: Release
 
-# On every push to main, tag and cut a GitHub Release *iff* the package version
-# in Cargo.toml changed relative to the previous commit. A no-op otherwise, so
-# it is safe to run on every merge.
+# Runs only after the CI workflow completes on main. Gated on CI success below,
+# so a release happens only when fmt, clippy, wasm-build, and test all passed.
+# Then, iff the package version in Cargo.toml changed relative to the previous
+# commit, it tags, cuts a GitHub Release, and publishes to crates.io. A no-op
+# otherwise, so it is safe after every merge.
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
 
 permissions:
   contents: write
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release
   cancel-in-progress: false
 
 jobs:
   release:
-    name: Tag & release on version bump
+    name: Tag, release & publish on version bump
+    # Only when CI succeeded, and only for a push to main (not PR-triggered CI).
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 2 # need the previous commit to diff the version
+          # workflow_run defaults to the default branch; check out the exact
+          # commit CI validated, with its parent for the version diff.
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 2
+      - uses: dtolnay/rust-toolchain@stable
 
       - name: Detect version bump
         id: detect
@@ -57,5 +69,6 @@ jobs:
           git push origin "$tag"
           gh release create "$tag" --title "$tag" --generate-notes
 
-      - if: steps.detect.outputs.bumped == 'true'
+      - name: Publish to crates.io
+        if: steps.detect.outputs.bumped == 'true'
         run: cargo publish --token ${{ secrets.CRATES_IO_TOKEN }}
