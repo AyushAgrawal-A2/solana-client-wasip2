@@ -25,7 +25,13 @@ fn wasm_component_hits_validator_over_wasi_http() {
     // host workspace).
     let smoke_dir = concat!(env!("CARGO_MANIFEST_DIR"), "/wasm-smoke");
     let built = Command::new(env!("CARGO"))
-        .args(["build", "--release", "--target", "wasm32-wasip2", "--manifest-path"])
+        .args([
+            "build",
+            "--release",
+            "--target",
+            "wasm32-wasip2",
+            "--manifest-path",
+        ])
         .arg(format!("{smoke_dir}/Cargo.toml"))
         .status()
         .expect("run cargo build for wasm-smoke");
@@ -62,7 +68,16 @@ fn wasm_component_hits_validator_over_wasi_http() {
 
     assert!(out.status.success(), "wasm component exited with error");
     assert!(stdout.contains("version="), "missing getVersion output");
-    assert!(stdout.contains("blockhash="), "missing getLatestBlockhash output");
-    assert!(stdout.contains("balance=1000000000"), "wrong/missing getBalance output");
-    assert!(stdout.contains("SMOKE_OK"), "component did not finish cleanly");
+    assert!(
+        stdout.contains("blockhash="),
+        "missing getLatestBlockhash output"
+    );
+    assert!(
+        stdout.contains("balance=1000000000"),
+        "wrong/missing getBalance output"
+    );
+    assert!(
+        stdout.contains("SMOKE_OK"),
+        "component did not finish cleanly"
+    );
 }

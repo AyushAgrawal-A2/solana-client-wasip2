@@ -38,7 +38,8 @@ fn spy(body: &str) -> (RpcClient<MockTransport>, MockTransport) {
 
 #[test]
 fn account_info_defaults_to_base64_encoding() {
-    let (client, mock) = spy(r#"{"jsonrpc":"2.0","id":1,"result":{"context":{"slot":1},"value":null}}"#);
+    let (client, mock) =
+        spy(r#"{"jsonrpc":"2.0","id":1,"result":{"context":{"slot":1},"value":null}}"#);
     client
         .get_account_with_commitment(&pk(), CommitmentConfig::finalized())
         .unwrap();
@@ -88,7 +89,9 @@ fn with_config_includes_config() {
         limit: Some(5),
         ..Default::default()
     };
-    client.get_signatures_for_address_with_config(&pk(), cfg).unwrap();
+    client
+        .get_signatures_for_address_with_config(&pk(), cfg)
+        .unwrap();
     let req = mock.request(0);
     assert_eq!(req["params"].as_array().unwrap().len(), 2);
     assert_eq!(req["params"][1]["limit"], 5);
@@ -97,7 +100,9 @@ fn with_config_includes_config() {
 #[test]
 fn commitment_is_passed_through() {
     let (client, mock) = spy(r#"{"jsonrpc":"2.0","id":1,"result":1}"#);
-    client.get_slot_with_commitment(CommitmentConfig::confirmed()).unwrap();
+    client
+        .get_slot_with_commitment(CommitmentConfig::confirmed())
+        .unwrap();
     assert_eq!(mock.request(0)["params"][0]["commitment"], "confirmed");
 }
 

@@ -29,10 +29,11 @@ fn confirm_transaction_true_when_reached() {
     // Default commitment is finalized; a "confirmed" status does NOT reach it,
     // but at `confirmed` commitment it does.
     let c = client(CONFIRMED_STATUS);
-    assert!(c
-        .confirm_transaction_with_commitment(&Signature::default(), CommitmentConfig::confirmed())
-        .unwrap()
-        .value);
+    assert!(
+        c.confirm_transaction_with_commitment(&Signature::default(), CommitmentConfig::confirmed())
+            .unwrap()
+            .value
+    );
 }
 
 #[test]
@@ -40,10 +41,14 @@ fn confirm_transaction_false_when_commitment_not_satisfied() {
     // A single check (like the official client): "confirmed" does not satisfy
     // "finalized", so the value is false.
     let c = client(CONFIRMED_STATUS);
-    assert!(!c
-        .confirm_transaction_with_commitment(&Signature::default(), CommitmentConfig::finalized())
+    assert!(
+        !c.confirm_transaction_with_commitment(
+            &Signature::default(),
+            CommitmentConfig::finalized()
+        )
         .unwrap()
-        .value);
+        .value
+    );
 }
 
 #[test]
@@ -53,10 +58,14 @@ fn confirm_transaction_false_on_onchain_failure() {
     // failure reason stays reachable via get_signature_status.
     let failed = r#"{"jsonrpc":"2.0","id":1,"result":{"context":{"slot":1},"value":[{"slot":100,"confirmations":1,"status":{"Err":"AccountNotFound"},"err":"AccountNotFound","confirmationStatus":"confirmed"}]}}"#;
     let c = client(failed);
-    assert!(!c
-        .confirm_transaction_with_commitment(&Signature::default(), CommitmentConfig::confirmed())
+    assert!(
+        !c.confirm_transaction_with_commitment(
+            &Signature::default(),
+            CommitmentConfig::confirmed()
+        )
         .unwrap()
-        .value);
+        .value
+    );
     let status = c
         .get_signature_status(&Signature::default())
         .unwrap()
@@ -90,7 +99,10 @@ fn get_new_latest_blockhash_returns_when_changed() {
     let new = client(body)
         .get_new_latest_blockhash(&Hash::default())
         .unwrap();
-    assert_eq!(new.to_string(), "EETubP5AKHgjPAhzPAFcb8BAY1hMH639CWCFTqi3hq1k");
+    assert_eq!(
+        new.to_string(),
+        "EETubP5AKHgjPAhzPAFcb8BAY1hMH639CWCFTqi3hq1k"
+    );
 }
 
 #[test]
@@ -122,7 +134,8 @@ fn default_commitment_is_finalized_and_configurable() {
     let mock2 = MockTransport::success(
         r#"{"jsonrpc":"2.0","id":1,"result":{"context":{"slot":1},"value":1}}"#,
     );
-    let c2 = RpcClient::new_with_transport("http://x", mock2.clone()).with_commitment(CommitmentConfig::confirmed());
+    let c2 = RpcClient::new_with_transport("http://x", mock2.clone())
+        .with_commitment(CommitmentConfig::confirmed());
     c2.get_balance(&Pubkey::new_unique()).unwrap();
     assert_eq!(mock2.request(0)["params"][1]["commitment"], "confirmed");
 }

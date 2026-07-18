@@ -1,0 +1,61 @@
+name: Release
+
+# On every push to main, tag and cut a GitHub Release *iff* the package version
+# in Cargo.toml changed relative to the previous commit. A no-op otherwise, so
+# it is safe to run on every merge.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Tag & release on version bump
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2 # need the previous commit to diff the version
+
+      - name: Detect version bump
+        id: detect
+        run: |
+          set -euo pipefail
+          version_of() { sed -n '/^\[package\]/,/^\[/ s/^version *= *"\(.*\)"/\1/p'; }
+
+          new=$(version_of < Cargo.toml)
+          old=$(git show HEAD~1:Cargo.toml 2>/dev/null | version_of || true)
+          echo "previous: ${old:-<none>}"
+          echo "current:  $new"
+          echo "version=$new" >> "$GITHUB_OUTPUT"
+          if [ "${old:-}" != "$new" ]; then
+            echo "bumped=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "bumped=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create tag and GitHub release
+        if: steps.detect.outputs.bumped == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="v${{ steps.detect.outputs.version }}"
+          if git rev-parse "$tag" >/dev/null 2>&1; then
+            echo "Tag $tag already exists — nothing to do."
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$tag" -m "$tag"
+          git push origin "$tag"
+          gh release create "$tag" --title "$tag" --generate-notes
+
+      - if: steps.detect.outputs.bumped == 'true'
+        run: cargo publish --token ${{ secrets.CRATES_IO_TOKEN }}

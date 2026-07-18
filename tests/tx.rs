@@ -61,8 +61,10 @@ fn spl_transfer_from_reexports() {
     let dest_wallet = Pubkey::new_unique();
     let token_id = spl_token::id();
 
-    let src_ata = spl_associated_token_account::address::get_associated_token_address(&owner, &mint);
-    let dest_ata = spl_associated_token_account::address::get_associated_token_address(&dest_wallet, &mint);
+    let src_ata =
+        spl_associated_token_account::address::get_associated_token_address(&owner, &mint);
+    let dest_ata =
+        spl_associated_token_account::address::get_associated_token_address(&dest_wallet, &mint);
 
     let ixs = vec![
         ComputeBudgetInstruction::set_compute_unit_price(1_000),
@@ -73,7 +75,14 @@ fn spl_transfer_from_reexports() {
             &token_id,
         ),
         spl_token::instruction::transfer_checked(
-            &token_id, &src_ata, &mint, &dest_ata, &owner, &[], 1_000_000, 6,
+            &token_id,
+            &src_ata,
+            &mint,
+            &dest_ata,
+            &owner,
+            &[],
+            1_000_000,
+            6,
         )
         .unwrap(),
         spl_memo::instruction::build_memo(&spl_memo::v3::id(), b"invoice-412", &[&owner]),

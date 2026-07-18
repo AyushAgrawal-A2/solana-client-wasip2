@@ -20,8 +20,8 @@ pub use solana_account_decoder_client_types::token::UiTokenAmount;
 pub use solana_account_decoder_client_types::{UiAccount, UiAccountData};
 
 pub use solana_transaction_status_client_types::{
-    EncodedConfirmedBlock, EncodedConfirmedTransactionWithStatusMeta, TransactionConfirmationStatus,
-    TransactionStatus, UiConfirmedBlock,
+    EncodedConfirmedBlock, EncodedConfirmedTransactionWithStatusMeta,
+    TransactionConfirmationStatus, TransactionStatus, UiConfirmedBlock,
 };
 
 pub use solana_epoch_info::EpochInfo;

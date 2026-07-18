@@ -63,9 +63,7 @@ fn classify(r: &RpcRequest) -> Coverage {
         RpcRequest::GetLeaderSchedule => Impl("getLeaderSchedule"),
         RpcRequest::GetMaxRetransmitSlot => Impl("getMaxRetransmitSlot"),
         RpcRequest::GetMaxShredInsertSlot => Impl("getMaxShredInsertSlot"),
-        RpcRequest::GetMinimumBalanceForRentExemption => {
-            Impl("getMinimumBalanceForRentExemption")
-        }
+        RpcRequest::GetMinimumBalanceForRentExemption => Impl("getMinimumBalanceForRentExemption"),
         RpcRequest::GetMultipleAccounts => Impl("getMultipleAccounts"),
         RpcRequest::GetProgramAccounts => Impl("getProgramAccounts"),
         RpcRequest::GetRecentPerformanceSamples => Impl("getRecentPerformanceSamples"),
